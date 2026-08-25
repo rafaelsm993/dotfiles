@@ -257,8 +257,16 @@ nvim
 
 **`sf` says "No authenticated orgs found" / "secret-tool: The name is not activatable"**
 
-WSL has no D-Bus secret service. `config.fish` must export
-`SF_USE_GENERIC_UNIX_KEYCHAIN=true`. Check it:
+First, **check which shell you're in.** `SF_USE_GENERIC_UNIX_KEYCHAIN` is exported
+from `config.fish`, so any *bash* shell (scripts, CI, agent/tool terminals) will
+show `No Orgs found` and `secret-tool` warnings even on a perfectly working setup:
+
+```bash
+fish -c 'sf org list'      # correct
+sf org list                # misleading if the current shell is bash
+```
+
+If it also fails from fish, verify the export is present:
 
 ```bash
 ./bootstrap.fish --only verify | grep KEYCHAIN
