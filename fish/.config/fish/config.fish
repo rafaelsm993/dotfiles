@@ -18,5 +18,11 @@ mise activate fish | source
 # decrypts auth files with ~/.sfdx/key.json instead of the OS keyring.
 set -gx SF_USE_GENERIC_UNIX_KEYCHAIN true
 set -gx SFDX_USE_GENERIC_UNIX_KEYCHAIN true
+# Salesforce CLI: `sf org login web` binds its OAuth callback server to whatever
+# "localhost" resolves to first. Under WSL2 that is IPv6 [::1], which the Windows
+# browser cannot reach through localhost-forwarding, so the redirect hangs and the
+# auth code is never redeemed -> "invalid_grant: expired authorization code".
+# Forcing IPv4 makes it bind 127.0.0.1, which Windows can reach.
+set -gx NODE_OPTIONS --dns-result-order=ipv4first
 # oh-my-posh init fish --config 'https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/easy-term.omp.json' | source
 oh-my-posh init fish --config "$__fish_config_dir/tokyo.omp.json" | source
