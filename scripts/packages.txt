@@ -1,0 +1,47 @@
+# Explicit pacman packages for a WSL Arch dev box.
+# Regenerate a candidate list with: pacman -Qqe
+# Installed with: sudo pacman -S --needed <list>
+#
+# NOTE: base-devel is a package GROUP, not a package. bootstrap.fish detects
+# groups via `pacman -Sqg` membership (see pkg_installed in scripts/lib.fish).
+
+# --- base system ---
+base
+base-devel
+
+# --- shell & prompt ---
+fish
+
+# --- core dev tools ---
+git
+neovim
+stow
+mise
+openssh
+
+# --- CLI utilities ---
+fd
+ripgrep
+fzf
+jq
+tree
+less
+man-db
+unzip
+zip
+wget
+lazygit
+yazi
+fastfetch
+tree-sitter-cli
+
+# --- clipboard (WSL interop + nvim) ---
+wl-clipboard
+xclip
+
+# --- media / libs pulled in by tooling ---
+ffmpeg
+libxkbcommon
+nss
+at-spi2-core
+cups

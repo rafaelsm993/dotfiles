@@ -2,7 +2,27 @@
 
 ## Repository Overview
 
-Personal dotfiles for **kanoah** targeting CachyOS Linux. Contains configurations for: Neovim, Fish shell, FastFetch, and WezTerm.
+Personal dotfiles for **kanoah** targeting Arch Linux (CachyOS native + WSL2). Contains configurations for: Neovim, Fish shell, FastFetch, WezTerm, Hyprland, Noctalia, and mise.
+
+## Bootstrap scripts
+
+A fresh machine is provisioned by `./bootstrap.sh` (POSIX shim that installs fish, then hands off to `bootstrap.fish`). `bootstrap.fish` runs nine idempotent phases: `packages wslconf stow mise npm omp shell git verify`.
+
+```bash
+./bootstrap.sh --dry-run        # preview, changes nothing
+./bootstrap.fish --only stow    # run one phase
+./bootstrap.fish --skip packages
+```
+
+Supporting files — edit these rather than the script:
+- `scripts/packages.txt` — pacman packages
+- `scripts/npm-globals.txt` — global npm packages
+- `scripts/wsl.conf.template` — `/etc/wsl.conf`; `__USER__` is replaced with `whoami` at run time
+- `scripts/lib.fish` — logging, `--dry-run` plumbing, and `pkg_installed` (group-aware: `pacman -Qq` fails on groups like `base-devel`, so it falls back to `pacman -Sqg` membership)
+
+Full setup walkthrough: `docs/FRESH-INSTALL.md`.
+
+**No username is hardcoded** anywhere in the bootstrap path — it uses `whoami`/`$HOME` throughout.
 
 ## GNU Stow
 
@@ -17,11 +37,17 @@ stow -n wezterm    # dry run
 **Package directory structure**: each top-level folder is a stow package. Files must be nested to mirror `~/`. For example:
 - `wezterm/.config/wezterm/wezterm.lua` → `~/.config/wezterm/wezterm.lua`
 
-Currently stowed: `wezterm`, `nvim`, `fish`, `fastfetch`, `hypr`, `noctalia`.
+Stow packages: `wezterm`, `nvim`, `fish`, `fastfetch`, `hypr`, `noctalia`, `mise`.
 
-> **⚠ Machine-specific paths**: `.stowrc` contains hardcoded `--target` and `--dir` paths. Update both when cloning on a new machine:
-> - `--target` → absolute path to `~/` on the new machine
-> - `--dir` → absolute path to this repo's root
+**In WSL, `bootstrap.fish` stows only `fish nvim fastfetch mise`** (see `STOW_PACKAGES`). `wezterm` runs on the Windows host and `hypr`/`noctalia` are Wayland/GUI-only, so they are excluded there.
+
+> **⚠ Machine-specific paths**: `.stowrc` contains hardcoded `--target` and `--dir` paths, so manual `stow` invocations only work for the user it was written for. Update both when cloning on a new machine. `bootstrap.fish` bypasses `.stowrc` by passing `--target`/`--dir` explicitly.
+
+## WSL gotchas
+
+Two environment quirks that the bootstrap encodes and `verify` asserts:
+- **`/mnt/c` must be mounted with `metadata`** (`[automount] options="metadata,umask=22,fmask=11"` in `/etc/wsl.conf`), or every file is mode `777` and the Salesforce CLI rejects `~/.sfdx/key.json`.
+- **WSL has no D-Bus secret service**, so `config.fish` exports `SF_USE_GENERIC_UNIX_KEYCHAIN=true`; without it `sf` fails with `secret-tool: The name is not activatable` and no org can be authenticated.
 
 ## Lua Formatting (Neovim config)
 

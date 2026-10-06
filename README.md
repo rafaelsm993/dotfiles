@@ -32,20 +32,21 @@ the terminal and tmux-style setup.
 ## Bootstrap
 
 `bootstrap.sh` is a tiny POSIX shim that installs fish (a fresh Arch box doesn't
-have it), then hands off to `bootstrap.fish`, which does the real work in nine
+have it), then hands off to `bootstrap.fish`, which does the real work in ten
 idempotent phases.
 
 | Phase | Action |
 |---|---|
 | `packages` | `pacman -S --needed` from `scripts/packages.txt` |
 | `wslconf` | installs `/etc/wsl.conf` (automount `metadata` — required by the Salesforce CLI) |
-| `stow` | symlinks `fish`, `nvim`, `fastfetch`, `mise` |
+| `stow` | symlinks `fish`, `nvim`, `fastfetch`, `mise`, `herdr` (`--no-folding`) |
 | `mise` | installs the java + node runtimes |
 | `npm` | installs globals from `scripts/npm-globals.txt` |
 | `omp` | installs oh-my-posh into `~/.local/bin` |
+| `herdr` | installs herdr into `~/.local/bin`, agent integrations (claude/copilot/codex if present), the herdr agent skill |
 | `shell` | sets fish as the login shell |
 | `git` | applies global git config |
-| `verify` | asserts the resulting environment is sane |
+| `verify` | asserts the resulting environment is sane (incl. `herdr config check`) |
 
 ### Options
 
@@ -77,7 +78,8 @@ Every phase is **idempotent** — running it twice is safe and mostly a no-op.
 - Set your git identity (`user.email`)
 - Generate SSH keys or log into GitHub
 - Install Windows-side apps (WezTerm, Neovim for Windows, Nerd Fonts)
-- Install Herdr (see below)
+- Copy `wezterm.lua` to Windows (see [WezTerm + Herdr on Windows/WSL](#wezterm--herdr-on-windowswsl))
+- Install the Hermes herdr integration (it needs your Hermes profile name)
 
 ---
 
@@ -136,8 +138,7 @@ stow -n -v fastfetch fish wezterm nvim noctalia hypr herdr
 stow -v fastfetch fish wezterm nvim noctalia hypr herdr
 ```
 
-Stowed by bootstrap in WSL: `fish`, `nvim`, `fastfetch`, `mise`. Stow `herdr`
-by hand (see below).
+Stowed by bootstrap in WSL: `fish`, `nvim`, `fastfetch`, `mise`, `herdr`.
 
 **Not** stowed in WSL — `wezterm` (runs on the Windows host, its config is copied),
 `hypr` and `noctalia` (Wayland/GUI, no compositor in WSL).
@@ -267,10 +268,11 @@ cp -r wezterm/.config/wezterm/. $WINHOME/.config/wezterm/
 ls $WINHOME/.config/wezterm
 ```
 
-**3. Inside WSL:** install and stow Herdr and its agent integrations. Follow
-[Install](#install-any-arch-box-desktop-or-wsl) and
-[Coding-agent integration](#coding-agent-integration) above. `npx` comes from the
-mise-managed node set up by bootstrap.
+**3. Inside WSL:** nothing to do if you ran `./bootstrap.sh`. Its `herdr` phase
+installs herdr, stows the config, and adds the agent integrations and skill. To
+re-run just that part: `./bootstrap.fish --only stow --only herdr`. The steps it
+automates are listed in [Install](#install-any-arch-box-desktop-or-wsl) and
+[Coding-agent integration](#coding-agent-integration).
 
 **4. Check:** open WezTerm. You should land in fish inside Arch, then:
 
@@ -299,10 +301,11 @@ Two non-obvious things that cost real debugging time:
 
 2. **WSL has no D-Bus secret service**, so `libsecret`/`secret-tool` fails with
    *"The name is not activatable"* and the Salesforce CLI cannot decrypt any auth
-   file. `config.fish` exports `SF_USE_GENERIC_UNIX_KEYCHAIN=true` to force the
-   CLI's file-based keychain. The `verify` phase asserts this is present.
-   **Do not** set it on the CachyOS desktop, which has a real keychain: there it
-   causes `AuthDecryptError` on deploy.
+   file. `config.fish` exports `SF_USE_GENERIC_UNIX_KEYCHAIN=true` (plus
+   `NODE_OPTIONS=--dns-result-order=ipv4first` for `sf org login web`) to force
+   the CLI's file-based keychain, **only when the kernel reports WSL**. On the
+   CachyOS desktop the real keychain is used: forcing the file one there causes
+   `AuthDecryptError` on deploy. The `verify` phase asserts the export is present.
 
 Also note WSL and Windows have **separate home directories**. Auth done in
 Windows (`C:\Users\<you>\.sfdx`) is invisible to WSL. Run `sf org login web`

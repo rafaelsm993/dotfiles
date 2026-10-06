@@ -1,0 +1,5 @@
+# Global npm packages, installed into the mise-managed node prefix.
+# npm and corepack ship with node itself - do not list them here.
+@salesforce/cli
+prettier
+prettier-plugin-apex
