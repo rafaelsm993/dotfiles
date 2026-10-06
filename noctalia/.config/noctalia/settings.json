@@ -314,9 +314,6 @@
                     "width": 200
                 },
                 {
-                    "defaultSettings": {
-                        "mode": "region"
-                    },
                     "id": "plugin:screenshot"
                 }
             ]
@@ -468,7 +465,7 @@
         "animationDisabled": false,
         "animationSpeed": 1,
         "autoStartAuth": false,
-        "avatarImage": "/home/kanoah/.face",
+        "avatarImage": "/home/user/.face",
         "boxRadiusRatio": 1,
         "clockFormat": "hh\\nmm",
         "clockStyle": "analog",
@@ -758,7 +755,7 @@
     },
     "wallpaper": {
         "automationEnabled": false,
-        "directory": "/home/kanoah/Pictures/Wallpapers",
+        "directory": "/home/user/Pictures/Wallpapers",
         "enableMultiMonitorDirectories": false,
         "enabled": true,
         "favorites": [

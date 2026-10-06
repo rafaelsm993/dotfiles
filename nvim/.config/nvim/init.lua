@@ -116,6 +116,20 @@ vim.o.showmode = false
 --  See `:help 'clipboard'`
 vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
 
+-- If Windows inherits Git Bash as the shell, keep the matching shell flags.
+-- Neovim's default Windows flags (`/s /c`) are for cmd.exe and make
+-- `vim.fn.system()` calls fail under bash with: `/usr/bin/bash: /s: No such file`.
+if vim.fn.has 'win32' == 1 and vim.o.shell:lower():match 'bash' then
+  vim.o.shellcmdflag = '-c'
+  vim.o.shellquote = ''
+  vim.o.shellxquote = ''
+end
+
+-- Use a Nerd Font on Windows so icon glyphs (lualine, yazi, treesitter) render.
+if vim.fn.has 'win32' == 1 then
+  vim.opt.guifont = 'JetBrainsMono NF:h12'
+end
+
 -- Enable break indent
 vim.o.breakindent = true
 
@@ -952,7 +966,7 @@ require('lazy').setup({
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter-intro`
     config = function()
       -- ensure basic parser are installed
-      local parsers = { 'bash', 'c', 'diff', 'html', 'jsdoc', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+      local parsers = { 'apex', 'bash', 'c', 'diff', 'html', 'jsdoc', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
       require('nvim-treesitter').install(parsers)
 
       ---@param buf integer

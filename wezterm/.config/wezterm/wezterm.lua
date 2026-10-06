@@ -4,7 +4,7 @@ local act = wezterm.action
 -- ── Transparency toggle ────────────────────────────────────────────────────
 -- Toggles window_background_opacity between transparent (0.85) and opaque (1.0).
 -- Neovim inherits automatically via `Normal bg = none`.
--- Trigger with <leader>o.
+-- Trigger with CTRL+SHIFT+O.
 local OPACITY_ON = 0.85
 local OPACITY_OFF = 1.0
 
@@ -42,17 +42,23 @@ config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.window_close_confirmation = 'NeverPrompt'
 config.window_decorations = 'RESIZE'
+config.font = wezterm.font 'JetBrains Mono'
 config.font_size = 14
 config.line_height = 1.2
 config.cursor_blink_rate = 0
 config.hide_tab_bar_if_only_one_tab = true
 config.window_padding = { left = 0, right = 0, top = 0, bottom = 0 }
 config.window_background_opacity = OPACITY_ON
-config.color_scheme = "Tokyo Night"
+config.color_scheme = 'Tokyo Night'
 -- config.color_scheme = 'Tokyo Night Light (Gogh)'
 config.max_fps = 180
 config.prefer_egl = true
 config.enable_wayland = false;
+
+-- Windows host: open straight into the Arch WSL distro, where herdr runs.
+if wezterm.target_triple:find('windows') then
+  config.default_prog = { 'wsl.exe', '-d', 'archlinux', '--cd', '~' }
+end
 
 -- DEBUG: press CTRL+SHIFT+L in wezterm to open the overlay
 -- config.debug_key_events = true
@@ -60,80 +66,15 @@ config.enable_wayland = false;
 -- Disable defaults to prevent silent conflicts with the custom layout below
 config.disable_default_key_bindings = true
 
--- ── Leader (tmux-style prefix) ────────────────────────────────────────────
-config.leader = { key = 'Space', mods = 'CTRL', timeout_milliseconds = 1000 }
-
--- ── Key tables ────────────────────────────────────────────────────────────
--- Resize mode: enter with <leader>r, use h/j/k/l, exit with q / Esc
-config.key_tables = {
-  resize_pane = {
-    { key = 'h',      action = act.AdjustPaneSize { 'Left', 3 } },
-    { key = 'l',      action = act.AdjustPaneSize { 'Right', 3 } },
-    { key = 'j',      action = act.AdjustPaneSize { 'Down', 3 } },
-    { key = 'k',      action = act.AdjustPaneSize { 'Up', 3 } },
-    { key = 'q',      action = act.PopKeyTable },
-    { key = 'Escape', action = act.PopKeyTable },
-  },
-}
-
+-- Herdr is the multiplexer: WezTerm must not claim CTRL+Space or any
+-- leader chord, or Herdr never sees the prefix. Only direct CTRL+SHIFT
+-- chords remain here.
 config.keys = {
-  -- ── Copy / paste (explicit, since defaults are disabled) ──────────────────
   { key = 'c', mods = 'CTRL|SHIFT', action = act.CopyTo 'Clipboard' },
   { key = 'v', mods = 'CTRL|SHIFT', action = act.PasteFrom 'Clipboard' },
   { key = 'l', mods = 'CTRL|SHIFT', action = act.ShowDebugOverlay },
-
-  -- ── Splits ───────────────────────────────────────────────────────────────
-  { key = '\\', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
-  { key = '-',  mods = 'LEADER', action = act.SplitVertical   { domain = 'CurrentPaneDomain' } },
-
-  -- ── Pane navigation ───────────────────────────────────────────────────────
-  { key = 'h', mods = 'LEADER', action = act.ActivatePaneDirection 'Left' },
-  { key = 'j', mods = 'LEADER', action = act.ActivatePaneDirection 'Down' },
-  { key = 'k', mods = 'LEADER', action = act.ActivatePaneDirection 'Up' },
-  { key = 'l', mods = 'LEADER', action = act.ActivatePaneDirection 'Right' },
-
-  -- ── Pane management ──────────────────────────────────────────────────────
-  { key = 'f', mods = 'LEADER', action = act.TogglePaneZoomState },
-  { key = 'x', mods = 'LEADER', action = act.CloseCurrentPane { confirm = true } },
-  { key = 'w', mods = 'LEADER', action = act.CloseCurrentTab { confirm = true } },
-  -- <leader>r  enter resize mode (h/j/k/l to resize, q/Esc to exit)
-  { key = 'r', mods = 'LEADER', action = act.ActivateKeyTable { name = 'resize_pane', one_shot = false } },
-
-  -- ── Tabs ─────────────────────────────────────────────────────────────────
-  { key = 't', mods = 'LEADER', action = act.SpawnTab 'CurrentPaneDomain' },
-  { key = 'n', mods = 'LEADER', action = act.ActivateTabRelative(1) },
-  { key = 'p', mods = 'LEADER', action = act.ActivateTabRelative(-1) },
-  -- <leader>1-9  jump directly to tab
-  { key = '1', mods = 'LEADER', action = act.ActivateTab(0) },
-  { key = '2', mods = 'LEADER', action = act.ActivateTab(1) },
-  { key = '3', mods = 'LEADER', action = act.ActivateTab(2) },
-  { key = '4', mods = 'LEADER', action = act.ActivateTab(3) },
-  { key = '5', mods = 'LEADER', action = act.ActivateTab(4) },
-  { key = '6', mods = 'LEADER', action = act.ActivateTab(5) },
-  { key = '7', mods = 'LEADER', action = act.ActivateTab(6) },
-  { key = '8', mods = 'LEADER', action = act.ActivateTab(7) },
-  { key = '9', mods = 'LEADER', action = act.ActivateTab(8) },
-  -- <leader>,  rename tab
-  {
-    key = ',',
-    mods = 'LEADER',
-    action = act.PromptInputLine {
-      description = 'Rename tab',
-      action = wezterm.action_callback(function(window, _, line)
-        if line then window:active_tab():set_title(line) end
-      end),
-    },
-  },
-
-  -- ── Copy / search ─────────────────────────────────────────────────────────
-  { key = '[', mods = 'LEADER', action = act.ActivateCopyMode },
-  { key = '/', mods = 'LEADER', action = act.Search { CaseSensitiveString = '' } },
-
-  -- ── Misc ──────────────────────────────────────────────────────────────────
-  -- Pass CTRL+Space through to the running app when needed
-  { key = 'Space', mods = 'LEADER|CTRL',  action = act.SendKey { key = 'Space', mods = 'CTRL' } },
-  -- Toggle terminal + Neovim transparency (Hyprland blur effect)
-  { key = 'o',     mods = 'LEADER',       action = act.EmitEvent 'toggle-transparency' },
+  -- Toggle terminal + Neovim transparency (Hyprland blur effect). Was <leader>o.
+  { key = 'o', mods = 'CTRL|SHIFT', action = act.EmitEvent 'toggle-transparency' },
 }
 
 return config

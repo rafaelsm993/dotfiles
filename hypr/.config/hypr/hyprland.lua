@@ -17,6 +17,14 @@ hl.monitor({
     scale    = "1",
 })
 
+hl.monitor({
+    output   = "HDMI-A-1",
+    mode     = "3840x2160@60",
+    position = "auto",
+    scale    = "1",
+    mirror   = "DP-3",
+})
+
 
 ---------------------
 ---- MY PROGRAMS ----
@@ -27,8 +35,9 @@ local terminal    = "wezterm"
 local browser     = "vivaldi"
 local fileManager = "dolphin"
 
--- Noctalia IPC helper
-local function noc(cmd) return hl.dsp.exec_cmd("noctalia msg " .. cmd) end
+-- Noctalia v5 IPC helper
+local noctCall = "noctalia msg "
+local function noc(cmd) return hl.dsp.exec_cmd(noctCall .. cmd) end
 
 
 -------------------
@@ -86,7 +95,7 @@ hl.config({
 
         border_size = 2,
 
-        -- Colors are overridden after require("noctalia") at the bottom
+        -- Colors are overridden by Noctalia's generated Lua template when present.
         col = {
             active_border   = { colors = { "rgba(67ace4ee)", "rgba(5c61d6ee)" }, angle = 45 },
             inactive_border = "rgba(0d2030aa)",
@@ -226,7 +235,7 @@ hl.config({
 
         follow_mouse = 1,
 
-        sensitivity = 0, -- -1.0 - 1.0, 0 means no modification.
+        sensitivity = -0.3, -- -1.0 - 1.0, 0 means no modification.
 
         touchpad = {
             natural_scroll = false,
@@ -278,11 +287,11 @@ hl.bind(mainMod .. " + P",          hl.dsp.window.pseudo())
 -- ── Noctalia Shell ───────────────────────────────────────────────────────────
 hl.bind(mainMod .. " + space",       noc "panel-toggle launcher")
 hl.bind(mainMod .. " + Tab",         noc "window-switcher")
-hl.bind(mainMod .. " + SHIFT + V",   noc "panel-open launcher /clip")
-hl.bind(mainMod .. " + period",      noc "panel-open launcher /emo")
+hl.bind(mainMod .. " + SHIFT + V",   noc "panel-toggle clipboard")
+hl.bind(mainMod .. " + period",      noc "panel-toggle launcher /emo")
 hl.bind(mainMod .. " + Home",        noc "panel-toggle control-center")
 hl.bind(mainMod .. " + O",           noc "settings-toggle")
-hl.bind(mainMod .. " + M",           noc "panel-toggle system-monitor")
+hl.bind(mainMod .. " + M",           noc "settings-toggle system")
 hl.bind(mainMod .. " + X",           noc "panel-toggle session")
 hl.bind(mainMod .. " + Escape",      noc "session lock")
 
@@ -355,11 +364,11 @@ hl.define_submap("resize", function()
     -- Noctalia shell
     hl.bind(mainMod .. " + space",       noc "panel-toggle launcher")
     hl.bind(mainMod .. " + Tab",         noc "window-switcher")
-    hl.bind(mainMod .. " + SHIFT + V",   noc "panel-open launcher /clip")
-    hl.bind(mainMod .. " + period",      noc "panel-open launcher /emo")
+    hl.bind(mainMod .. " + SHIFT + V",   noc "panel-toggle clipboard")
+    hl.bind(mainMod .. " + period",      noc "panel-toggle launcher /emo")
     hl.bind(mainMod .. " + Home",        noc "panel-toggle control-center")
     hl.bind(mainMod .. " + O",           noc "settings-toggle")
-    hl.bind(mainMod .. " + M",           noc "panel-toggle system-monitor")
+    hl.bind(mainMod .. " + M",           noc "settings-toggle system")
     hl.bind(mainMod .. " + X",           noc "panel-toggle session")
     -- Workspaces
     for i = 1, 10 do
@@ -385,13 +394,20 @@ end
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special "magic")
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
--- Scroll through workspaces with mainMod + scroll wheel
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+-- Scroll through windows (columns) with mainMod + scroll wheel
+hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ direction = "right" }))
+hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ direction = "left" }))
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+
+-- ── Screenshots (Flameshot) ────────────────────────────────────────────────────
+local flameshotSavePath = "--path " .. os.getenv("HOME") .. "/Pictures/Screenshots"
+hl.bind("Print",                 hl.dsp.exec_cmd("flameshot gui --clipboard " .. flameshotSavePath),    { locked = true })
+hl.bind("CTRL + Print",          hl.dsp.exec_cmd("sleep 3 && flameshot gui --clipboard " .. flameshotSavePath), { locked = true })
+hl.bind("SHIFT + Print",         hl.dsp.exec_cmd("flameshot full --clipboard " .. flameshotSavePath),   { locked = true })
+hl.bind("CTRL + SHIFT + Print",  hl.dsp.exec_cmd("flameshot full --clipboard"),             { locked = true })
 
 -- ── Media / brightness ────────────────────────────────────────────────────────
 hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+", { locked = true, repeating = true })
@@ -452,12 +468,31 @@ hl.window_rule({ name = "col-chat",     match = { class = "(?i)(discord|vesktop|
 hl.window_rule({ name = "float-system",  match = { class = "(?i)(pavucontrol|blueman-manager|nm-connection-editor|org.kde.polkit-kde-authentication-agent-1)" }, float = true })
 hl.window_rule({ name = "float-pip",     match = { title = "(?i)picture.in.picture" },                                float = true, pin = true })
 hl.window_rule({ name = "float-portals", match = { class = "(?i)(xdg-desktop-portal-kde)" },                          float = true })
+-- WebKitGTK Web Inspector undocked from a Tauri dev app: float as a left-half pop-up
+-- instead of tiling as a new scrolling column.
+hl.window_rule({
+    name  = "float-webkit-inspector",
+    match = { class = "(?i)^tauri-app$", title = "(?i)(web )?inspector" },
+    float = true,
+    size  = "monitor_w*0.48 monitor_h*0.94",
+    move  = "10 44",
+})
 
--- For Noctalia Color templates
-require("noctalia")
+-- Apply Noctalia v5's generated Hyprland Lua theme when it exists.
+-- Noctalia writes this file from its hyprland app-theme template; keep the
+-- fallback colors below so Hyprland still starts before the first theme apply.
+do
+    local ok, noctalia = pcall(require, "noctalia")
+    if ok and type(noctalia) == "table" and type(noctalia.apply_theme) == "function" then
+        noctalia.apply_theme()
+    end
+end
 
--- ── Border gradient (must be AFTER require("noctalia") — overrides its flat border)
+-- ── Border gradient (after optional Noctalia theme — overrides its flat border)
 hl.config({ general = { col = {
     active_border   = { colors = { "rgba(67ace4ee)", "rgba(5c61d6ee)" }, angle = 45 },
     inactive_border = "rgba(0d2030aa)",
 }}})
+
+-- For Noctalia Color templates
+require("noctalia").apply_theme()

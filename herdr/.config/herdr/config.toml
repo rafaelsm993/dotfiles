@@ -1,0 +1,90 @@
+# Herdr config — managed in the dotfiles repo, stowed to ~/.config/herdr/config.toml
+# Reference for every key/default: https://herdr.dev/docs/config-reference/
+# Apply changes to a running server with: herdr server reload-config
+#
+# Keymap mirrors the old WezTerm tmux-style leader map (CTRL+Space + key).
+# WezTerm no longer defines a leader, so CTRL+Space reaches Herdr untouched.
+
+onboarding = false
+
+[theme]
+name = "tokyo-night"                              # matches wezterm color scheme
+
+[terminal]
+# Panes start in fish, matching the login shell.
+default_shell = "fish"
+# Inherit the cwd of the pane/workspace a new pane is created from.
+new_cwd = "follow"
+
+[keys]
+# ── Prefix ────────────────────────────────────────────────────────────────
+prefix = "ctrl+space"
+
+# ── Splits (WezTerm naming is inverted: its SplitHorizontal = side by side) ─
+split_vertical   = ["prefix+backslash", "prefix+v"]  # side by side (was <leader>\)
+split_horizontal = ["prefix+minus"]                  # stacked       (was <leader>-)
+
+# ── Pane focus ────────────────────────────────────────────────────────────
+focus_pane_left  = "prefix+h"
+focus_pane_down  = "prefix+j"
+focus_pane_up    = "prefix+k"
+focus_pane_right = "prefix+l"
+
+# ── Pane management ───────────────────────────────────────────────────────
+zoom        = ["prefix+f", "prefix+z"]            # was <leader>f
+close_pane  = "prefix+x"                          # was <leader>x
+resize_mode = "prefix+r"                          # was <leader>r (h/j/k/l inside)
+copy_mode   = "prefix+["                          # was <leader>[ ; press / inside to search
+
+# ── Tabs ──────────────────────────────────────────────────────────────────
+new_tab      = ["prefix+t", "prefix+c"]           # was <leader>t
+next_tab     = "prefix+n"                         # was <leader>n
+previous_tab = "prefix+p"                         # was <leader>p
+switch_tab   = "prefix+1..9"                      # was <leader>1..9
+rename_tab   = ["prefix+comma", "prefix+shift+t"] # was <leader>,
+close_tab    = ["prefix+w", "prefix+shift+x"]     # was <leader>w
+
+# ── Workspaces ────────────────────────────────────────────────────────────
+# prefix+w is Herdr's default workspace picker; it moves here because
+# prefix+w is close_tab above (WezTerm muscle memory wins).
+workspace_picker = "prefix+a"
+switch_workspace = "prefix+shift+1..9"            # one workspace per repo/task
+
+# ── Agents ────────────────────────────────────────────────────────────────
+# prefix+g = goto picker (default): every agent, filter b/w/i/d = blocked/working/idle/done.
+# prefix+o = jump to the agent that just raised a notification (default).
+focus_agent = "prefix+alt+1..9"                   # jump straight to agent N in the sidebar
+
+# ── Agentic-coding popups (session-modal, layout untouched) ───────────────
+[[keys.command]]
+key = "prefix+alt+g"
+type = "popup"
+command = "lazygit"
+description = "lazygit (review agent diffs)"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "prefix+alt+y"
+type = "popup"
+command = "yazi"
+description = "yazi file manager"
+width = "90%"
+height = "90%"
+
+[[keys.command]]
+key = "prefix+alt+s"
+type = "popup"
+command = "exec fish"
+description = "scratch shell"
+width = "80%"
+height = "80%"
+
+[ui]
+tab_bar_position = "bottom"                       # matches wezterm tab_bar_at_bottom
+tab_bar_right = [{ type = "zoom" }, { type = "datetime", format = "%H:%M" }]
+
+# Tell me when a background agent finishes or blocks on input.
+[ui.toast]
+delivery = "herdr"
+delay_seconds = 1

@@ -7,6 +7,12 @@
         }
     ],
     "states": {
+        "polkit-agent": {
+            "enabled": false
+        },
+        "screen-toolkit": {
+            "enabled": false
+        },
         "screenshot": {
             "enabled": true,
             "sourceUrl": "https://github.com/noctalia-dev/noctalia-plugins"

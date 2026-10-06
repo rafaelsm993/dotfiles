@@ -42,6 +42,14 @@ return {
         callback = function()
           -- ── helpers ───────────────────────────────────────────────────────────
 
+          local function sf_bin()
+            return vim.fn.has 'win32' == 1 and 'sf.cmd' or 'sf'
+          end
+
+          local function shell_args(cmd)
+            return vim.fn.has 'win32' == 1 and { 'bash', '-lc', cmd } or { 'sh', '-c', cmd }
+          end
+
           --- Open a scratch buffer with the output of `cmd`, press q to close
           local function run_in_buf(cmd, cwd)
             local buf = vim.api.nvim_create_buf(false, true)
@@ -54,7 +62,7 @@ return {
             vim.cmd 'botright split'
             vim.api.nvim_win_set_buf(0, buf)
             vim.api.nvim_buf_set_name(buf, '[SF: Apex Output]')
-            vim.system({ 'sh', '-c', cmd }, { cwd = cwd or vim.fn.getcwd(), text = true }, function(result)
+            vim.system(shell_args(cmd), { cwd = cwd or vim.fn.getcwd(), text = true }, function(result)
               vim.schedule(function()
                 local lines = {}
                 local raw = (result.stdout or '') .. (result.stderr or '')
@@ -88,7 +96,7 @@ return {
               title = ' Salesforce ',
               title_pos = 'center',
             })
-            vim.fn.termopen(cmd, {
+            vim.fn.termopen(shell_args(cmd), {
               cwd = cwd or vim.fn.getcwd(),
               on_exit = function()
                 vim.api.nvim_buf_set_keymap(buf, 'n', 'q', '<cmd>bdelete!<cr>', { noremap = true, silent = true })
@@ -127,9 +135,13 @@ return {
 
           --- Return the current target-org (alias or username), or nil
           local function get_default_org()
-            local out = vim.fn.system 'sf config get target-org --json 2>/dev/null'
-            local ok, data = pcall(vim.json.decode, out)
-            if not ok then return nil end
+            local result = vim.system({ sf_bin(), 'config', 'get', 'target-org', '--json' }, {
+              cwd = get_project_root() or vim.fn.getcwd(),
+              text = true,
+            }):wait()
+            if result.code ~= 0 then return nil end
+            local ok, data = pcall(vim.json.decode, result.stdout or '')
+            if not ok or not data then return nil end
             local entry = (data.result or {})[1] or {}
             return entry.value
           end
@@ -153,76 +165,58 @@ return {
           --- Check session validity via `sf org display` (handles token refresh automatically).
           --- callback(true) = ok, callback(false, msg) = invalid/error.
           local function check_auth(org, callback)
-            local called = false
-            local function once(valid, err)
-              if called then return end
-              called = true
-              callback(valid, err)
-            end
-            vim.fn.jobstart({
-              'sf',
-              'org',
-              'display',
-              '--target-org',
-              org,
-              '--json',
-            }, {
-              stdout_buffered = true,
-              on_stdout = function(_, data)
-                local raw = table.concat(data, '\n')
-                local ok, result = pcall(vim.json.decode, raw)
-                if ok and result and result.status == 0 then
-                  once(true, nil)
+            vim.system({ sf_bin(), 'org', 'display', '--target-org', org, '--json' }, {
+              cwd = get_project_root() or vim.fn.getcwd(),
+              text = true,
+            }, function(result)
+              vim.schedule(function()
+                local ok, data = pcall(vim.json.decode, result.stdout or '')
+                if result.code == 0 and ok and data and data.status == 0 then
+                  callback(true, nil)
                 else
-                  local msg = (ok and result and result.message) or 'Session check failed'
-                  once(false, '[SF] Session invalid: ' .. msg .. '\nRe-authenticate with <leader>Fl or run:\n  sf org login web --target-org ' .. org)
+                  local msg = (ok and data and data.message) or result.stderr or 'Session check failed'
+                  callback(false, '[SF] Session invalid: ' .. msg .. '\nRe-authenticate with <leader>Fl or run:\n  ' .. sf_bin() .. ' org login web --target-org ' .. org)
                 end
-              end,
-              on_exit = function(_, exit_code)
-                if exit_code > 1 then once(false, '[SF] Could not check org session (sf exited ' .. exit_code .. '). Is `sf` in your PATH?') end
-              end,
-            })
+              end)
+            end)
           end
 
-          --- Read authenticated orgs directly from ~/.sfdx/ auth files — no CLI call, no network hang.
+          --- Read authenticated orgs from the native Salesforce CLI so Windows ~/.sf auth works.
           local function list_orgs(callback)
-            local sfdx_dir = vim.fn.expand '~/.sfdx'
-
-            -- Build reverse alias map: username → alias
-            local aliases = {}
-            local alias_file = sfdx_dir .. '/alias.json'
-            if vim.fn.filereadable(alias_file) == 1 then
-              local ok, data = pcall(vim.json.decode, table.concat(vim.fn.readfile(alias_file), ''))
-              if ok and data and data.orgs then
-                for alias, username in pairs(data.orgs) do
-                  aliases[username] = alias
-                end
-              end
-            end
-
             local default_org = get_default_org()
-            local files = vim.fn.glob(sfdx_dir .. '/*.json', false, true)
-            local orgs = {}
-            for _, f in ipairs(files) do
-              if not f:match 'alias%.json$' then
-                local ok, data = pcall(vim.json.decode, table.concat(vim.fn.readfile(f), ''))
-                if ok and data and data.username then
-                  local alias = aliases[data.username]
-                  local is_default = default_org == alias or default_org == data.username
-                  table.insert(orgs, {
-                    username = data.username,
-                    alias = alias or vim.NIL,
-                    instanceUrl = data.instanceUrl,
-                    isSandbox = data.isSandbox,
-                    isScratch = data.isScratch,
-                    isDefaultUsername = is_default,
-                    isDefaultDevHubUsername = false,
-                  })
+            vim.system({ sf_bin(), 'org', 'list', '--json' }, { cwd = get_project_root() or vim.fn.getcwd(), text = true }, function(result)
+              local orgs, seen = {}, {}
+              local function add_org(o)
+                if type(o) ~= 'table' or not o.username or seen[o.username] then return end
+                seen[o.username] = true
+                local alias = o.alias
+                if type(alias) == 'table' then alias = alias[1] end
+                table.insert(orgs, {
+                  username = o.username,
+                  alias = alias or vim.NIL,
+                  instanceUrl = o.instanceUrl,
+                  isSandbox = o.isSandbox,
+                  isScratch = o.isScratch,
+                  isDefaultUsername = o.isDefaultUsername or default_org == alias or default_org == o.username,
+                  isDefaultDevHubUsername = o.isDefaultDevHubUsername or false,
+                })
+              end
+
+              local ok, data = pcall(vim.json.decode, result.stdout or '')
+              if result.code == 0 and ok and data and data.result then
+                for _, value in pairs(data.result) do
+                  if type(value) == 'table' and value.username then
+                    add_org(value)
+                  elseif type(value) == 'table' then
+                    for _, org in ipairs(value) do
+                      add_org(org)
+                    end
+                  end
                 end
               end
-            end
 
-            callback(orgs)
+              vim.schedule(function() callback(orgs) end)
+            end)
           end
 
           --- Format an org entry for display in the picker
@@ -249,7 +243,8 @@ return {
                 if not choice then return end
                 local org = orgs[idx]
                 local target = org.alias ~= vim.NIL and org.alias or org.username
-                vim.fn.jobstart('sf config set target-org ' .. vim.fn.shellescape(target), {
+                vim.fn.jobstart({ sf_bin(), 'config', 'set', 'target-org=' .. target }, {
+                  cwd = get_project_root() or vim.fn.getcwd(),
                   on_exit = function(_, code)
                     if code == 0 then
                       vim.notify('[SF] Default org set to: ' .. target, vim.log.levels.INFO)
@@ -282,7 +277,7 @@ return {
             end
             local org = get_default_org()
             local org_flag = org and (' --target-org ' .. vim.fn.shellescape(org)) or ''
-            run_in_term('sf project deploy start --source-dir ' .. vim.fn.shellescape(deploy_path) .. org_flag, root)
+            run_in_term(sf_bin() .. ' project deploy start --source-dir ' .. vim.fn.shellescape(deploy_path) .. org_flag, root)
           end
 
           --- Deploy entire project: uses manifest/package.xml if present, else source dirs from sfdx-project.json
@@ -297,7 +292,7 @@ return {
             else
               flag = ' --source-dir ' .. vim.fn.shellescape(root .. '/force-app')
             end
-            run_in_term('sf project deploy start' .. flag .. org_flag, root)
+            run_in_term(sf_bin() .. ' project deploy start' .. flag .. org_flag, root)
           end
 
           --- Retrieve current file from org
@@ -319,7 +314,7 @@ return {
             end
             local org = get_default_org()
             local org_flag = org and (' --target-org ' .. vim.fn.shellescape(org)) or ''
-            run_in_term('sf project retrieve start --source-dir ' .. vim.fn.shellescape(retrieve_path) .. org_flag, root)
+            run_in_term(sf_bin() .. ' project retrieve start --source-dir ' .. vim.fn.shellescape(retrieve_path) .. org_flag, root)
           end
 
           --- Retrieve entire project: uses manifest/package.xml if present, else source dirs from sfdx-project.json
@@ -334,7 +329,7 @@ return {
             else
               flag = ' --source-dir ' .. vim.fn.shellescape(root .. '/force-app')
             end
-            run_in_term('sf project retrieve start' .. flag .. org_flag, root)
+            run_in_term(sf_bin() .. ' project retrieve start' .. flag .. org_flag, root)
           end
 
           --- Diff current file against org version.
@@ -384,7 +379,7 @@ return {
               'LOCAL_BAK=' .. vim.fn.shellescape(org_tmp .. '.local'),
               'cp ' .. vim.fn.shellescape(path) .. ' "$LOCAL_BAK"',
               'cd ' .. vim.fn.shellescape(root),
-              'sf project retrieve start --source-dir ' .. vim.fn.shellescape(rel_path) .. ' --target-org ' .. vim.fn.shellescape(org),
+              sf_bin() .. ' project retrieve start --source-dir ' .. vim.fn.shellescape(rel_path) .. ' --target-org ' .. vim.fn.shellescape(org),
               'cp ' .. vim.fn.shellescape(path) .. ' ' .. vim.fn.shellescape(org_tmp),
               'cp "$LOCAL_BAK" ' .. vim.fn.shellescape(path),
               'rm "$LOCAL_BAK"',
@@ -408,7 +403,7 @@ return {
 
             vim.notify('[SF] Fetching org version of ' .. fname .. '…', vim.log.levels.INFO)
             vim.g.sf_diff_in_progress = 1
-            vim.fn.termopen({ 'bash', '-c', script }, {
+            vim.fn.termopen(shell_args(script), {
               cwd = root,
               on_exit = function(_, code)
                 vim.g.sf_diff_in_progress = 0
@@ -464,7 +459,7 @@ return {
             local manifest = root and (root .. '/manifest/package.xml') or ''
             local flag = (manifest ~= '' and vim.fn.filereadable(manifest) == 1) and (' --manifest ' .. vim.fn.shellescape(manifest))
               or (' --source-dir ' .. vim.fn.shellescape(root .. '/force-app'))
-            run_in_term('sf project deploy preview' .. flag .. org_flag, root)
+            run_in_term(sf_bin() .. ' project deploy preview' .. flag .. org_flag, root)
           end
 
           --- Execute the current .apex file as anonymous Apex
@@ -477,7 +472,7 @@ return {
             local root = get_project_root()
             local org = get_default_org()
             local org_flag = org and (' --target-org ' .. vim.fn.shellescape(org)) or ''
-            run_in_buf('sf apex run --file ' .. vim.fn.shellescape(path) .. org_flag, root)
+            run_in_buf(sf_bin() .. ' apex run --file ' .. vim.fn.shellescape(path) .. org_flag, root)
           end
 
           --- Execute the current visual selection as anonymous Apex (writes to a temp file)
@@ -503,7 +498,7 @@ return {
             local root = get_project_root()
             local org = get_default_org()
             local org_flag = org and (' --target-org ' .. vim.fn.shellescape(org)) or ''
-            run_in_buf('sf apex run --file ' .. vim.fn.shellescape(tmp) .. org_flag .. '; rm -f ' .. vim.fn.shellescape(tmp), root)
+            run_in_buf(sf_bin() .. ' apex run --file ' .. vim.fn.shellescape(tmp) .. org_flag .. '; rm -f ' .. vim.fn.shellescape(tmp), root)
           end
 
           --- Show retrieve preview (what would be retrieved)
@@ -514,7 +509,7 @@ return {
             local manifest = root and (root .. '/manifest/package.xml') or ''
             local flag = (manifest ~= '' and vim.fn.filereadable(manifest) == 1) and (' --manifest ' .. vim.fn.shellescape(manifest))
               or (' --source-dir ' .. vim.fn.shellescape(root .. '/force-app'))
-            run_in_term('sf project retrieve preview' .. flag .. org_flag, root)
+            run_in_term(sf_bin() .. ' project retrieve preview' .. flag .. org_flag, root)
           end
 
           --- Re-authenticate an org via browser login (use when session is expired)
@@ -531,7 +526,9 @@ return {
             end
             -- Kill anything holding the SF OAuth redirect port before and after
             local cmd = 'fuser -k 1717/tcp 2>/dev/null || true'
-              .. '; sf org login web'
+              .. '; '
+              .. sf_bin()
+              .. ' org login web'
               .. login_url_flag
               .. alias_flag
               .. '; fuser -k 1717/tcp 2>/dev/null || true'

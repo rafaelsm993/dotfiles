@@ -1,2 +1,2 @@
---target=/home/kanoah
---dir=/home/kanoah/Code/dotfiles
+--target=~
+--no-folding
