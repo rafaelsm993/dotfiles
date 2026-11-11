@@ -1,6 +1,7 @@
 # This file contains fish universal variable definitions.
 # VERSION: 3.0
 SETUVAR --export HERMES_HOME:/home/user/\x2ehermes/profiles/trismegistus
+SETUVAR --export TAVILY_API_KEY:tvly\x2ddev\x2d1D8gNd\x2dbVtUMt54YzYFsIqbJmPARci8qU83s60GVsckJ85K48
 SETUVAR __done_min_cmd_duration:10000
 SETUVAR __done_notification_urgency_level:low
 SETUVAR __fish_initialized:4300

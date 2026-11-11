@@ -17,6 +17,7 @@ set -g SKIP_PHASES
 #   wezterm  - WezTerm runs on the Windows host, its config lives there
 #   hypr     - Wayland compositor, no GUI in WSL
 #   noctalia - Wayland shell, no GUI in WSL
+#   uwsm     - Wayland session env, no GUI in WSL
 set -g STOW_PACKAGES fish nvim fastfetch mise herdr
 
 # Order matters:
@@ -218,7 +219,7 @@ function phase_stow
         end
     end
 
-    log_skip "not stowed (host/GUI only): wezterm hypr noctalia"
+    log_skip "not stowed (host/GUI only): wezterm hypr noctalia uwsm"
 end
 
 function phase_mise
